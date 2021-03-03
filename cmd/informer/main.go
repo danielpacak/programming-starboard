@@ -14,14 +14,29 @@ import (
 )
 
 func main() {
+	handler := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			report := obj.(*v1alpha1.ConfigAuditReport)
+			fmt.Printf("ConfigAuditReport has been created: %q\n", report.Namespace+"/"+report.Name)
+		},
+		UpdateFunc: func(_ interface{}, newObj interface{}) {
+			report := newObj.(*v1alpha1.ConfigAuditReport)
+			fmt.Printf("ConfigAuditReport has been updated: %q\n", report.Namespace+"/"+report.Name)
+		},
+		DeleteFunc: func(obj interface{}) {
+			report := obj.(*v1alpha1.ConfigAuditReport)
+			fmt.Printf("ConfigAuditReport has bee deleted: %q\n", report.Namespace+"/"+report.Name)
+		},
+	}
+
 	stopCh := wait.NeverStop
-	if err := run(stopCh); err != nil {
+	if err := run(stopCh, handler); err != nil {
 		log.Fatal(err.Error())
 	}
 	<-stopCh
 }
 
-func run(stopCh <-chan struct{}) error {
+func run(stopCh <-chan struct{}, handler cache.ResourceEventHandler) error {
 	kubeConfig, err := clientcmd.BuildConfigFromFlags("", "/Users/dpacak/.kube/config")
 	if err != nil {
 		return err
@@ -32,19 +47,7 @@ func run(stopCh <-chan struct{}) error {
 	}
 	informerFactory := externalversions.NewSharedInformerFactory(kubeClient, time.Second*30)
 	informer := informerFactory.Aquasecurity().V1alpha1().ConfigAuditReports()
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			report := obj.(*v1alpha1.ConfigAuditReport)
-			fmt.Printf("ConfigAuditReport has been created: %q\n", report.Namespace+"/"+report.Name)
-		},
-		UpdateFunc: func(_ interface{}, newObj interface{}) {
-			report := newObj.(*v1alpha1.ConfigAuditReport)
-			fmt.Printf("ConfigAuditReport has been updated: %q\n", report.Namespace+"/"+report.Name)
-		},
-		DeleteFunc: func(obj interface{}) {
-			fmt.Printf("ConfigAuditReport has bee deleted: %v\n", obj)
-		},
-	})
+	informer.Informer().AddEventHandler(handler)
 	informerFactory.Start(stopCh)
 	informerFactory.WaitForCacheSync(stopCh)
 	return nil

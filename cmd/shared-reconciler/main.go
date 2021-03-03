@@ -90,7 +90,6 @@ func run() error {
 
 	// ConfigAuditReportWatcher to export data somewhere
 
-
 	setupLog.Info("Starting controllers manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		return fmt.Errorf("starting controllers manager: %w", err)
