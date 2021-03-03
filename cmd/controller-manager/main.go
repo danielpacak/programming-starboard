@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/aquasecurity/starboard/pkg/config"
 	"github.com/aquasecurity/starboard/pkg/configauditreport"
@@ -14,6 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -23,7 +23,7 @@ var (
 
 func main() {
 	if err := run(); err != nil {
-		os.Exit(1)
+		setupLog.Error(err, "Unable to run controller manager")
 	}
 }
 
@@ -32,6 +32,8 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("getting operator config: %w", err)
 	}
+
+	log.SetLogger(zap.New(zap.UseDevMode(operatorConfig.LogDevMode)))
 
 	kubeConfig, err := ctrl.GetConfig()
 	if err != nil {
@@ -45,13 +47,16 @@ func run() error {
 		return fmt.Errorf("constructing kube client: %w", err)
 	}
 
-	options := manager.Options{}
+	options := manager.Options{
+		Scheme: starboard.NewScheme(),
+	}
+
 	mgr, err := ctrl.NewManager(kubeConfig, options)
 	if err != nil {
 		return err
 	}
 
-	configManager := starboard.NewConfigManager(kubeClientset, "default")
+	configManager := starboard.NewConfigManager(kubeClientset, operatorConfig.Namespace)
 	err = configManager.EnsureDefault(context.Background())
 	if err != nil {
 		return err
@@ -83,12 +88,6 @@ func run() error {
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to setup configauditreport reconciler: %w", err)
 	}
-
-	// regiser webhook
-	// register GW ingegration
-	// export crd to gPrc dend
-
-	// ConfigAuditReportWatcher to export data somewhere
 
 	setupLog.Info("Starting controllers manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
